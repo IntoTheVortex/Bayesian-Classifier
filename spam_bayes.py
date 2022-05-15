@@ -5,17 +5,6 @@ import seaborn as sb
 import matplotlib.pyplot as pyplt
 import numpy as np
 
-'''
-Create probabilistic model.   (Write your own code to do this.)   
-• Compute the prior probability for each class, 1 (spam) and 0 (not-spam) in 
-the training data. As described in part 1, P(1) should be about 0.4.    
-  
-• For each of the 57 features, compute the mean and standard deviation in the 
-training set of the values given each class.    If any of the features has zero standard 
-deviation, assign it a “minimal” standard deviation (e.g., 0.0001) to avoid a divide-by-
-zero error in Gaussian Naïve Bayes.    
-'''
-
 def naive_bayes_classifier(data, mu_spam, mu_not, sig_spam, sig_not, priors):
     correct_total = 0
     incorrect_total = 0
@@ -129,8 +118,16 @@ def main():
 
     #display results
     print("# correct:", right, "# incorrect:", wrong)
-    print(right/(right+wrong))
+    print("Accuracy:", right/(right+wrong))
 
+    #Precision = TP/(TP + FP)
+    precision = conf[1][1] / (conf[1][1] + conf[0][1])
+    #Recall = TP/(TP + FN)
+    recall = conf[1][1] / (conf[1][1] + conf[1][0])
+    print("Precision:", precision)
+    print("Recall:", recall)
+
+    #display confusion matrix
     confusion_data = pd.DataFrame(conf, range(2), range(2))
     sb.heatmap(confusion_data, cmap="BuPu", annot=True, fmt='d')
     pyplt.xlabel('Predicted Class')
