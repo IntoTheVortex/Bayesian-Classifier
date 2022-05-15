@@ -1,5 +1,8 @@
 import sys
+import math
 import pandas as pd
+import seaborn as sb
+import matplotlib.pyplot as pyplt
 import numpy as np
 
 '''
@@ -13,84 +16,126 @@ deviation, assign it a “minimal” standard deviation (e.g., 0.0001) to avoid 
 zero error in Gaussian Naïve Bayes.    
 '''
 
-def naive_bayes_classifier():
-    #P(xi|cj) = N(xi; mu^i,cj, sig^i,cj)
-    #N(xi; mu^i,cj, sig^i,cj) = 1/sqrt(2pi) * e ^ -[(x-mu)^2/2sig^2]
-    #
-    pass
+def naive_bayes_classifier(data, mu_spam, mu_not, sig_spam, sig_not, priors):
+    correct_total = 0
+    incorrect_total = 0
+    confusion = np.zeros(shape=(2,2), dtype=int)
 
-#bayes pt 2 about 28 min
-def calc_feature_values():
-    #just get mu and standard dev (sigma) for each of 57 different features
-    dataset = []
-    '''
-    for feature in dataset:
-        mu_class1 = sum of feature in examples of mu_class1 
-                    divided by number of them
-        mu_class2 = sum of feature in examples of mu_class2 
-                    divided by number of them
-        sigma_class1 = sqrt((feature_i - mu_of_feature)^2/num of feature_is
-        sigma_class2 = sqrt((feature_i - mu_of_feature)^2/num of feature_is
-        '''
+    #Feature probabilities given class:
+    feat_prob_1 = np.zeros(shape=data.shape)
+    feat_prob_0 = np.zeros(shape=data.shape)
+    #for spam
+    for i in range(len(data)):
+        for j in range(data.shape[1]):
+            sig = sig_spam[j] if sig_spam[j] > 0 else .0001
+            feat_prob_1[i][j] = (1 / math.sqrt(2 * math.pi)) * np.exp(-(math.pow((data[i][j] - mu_spam[j]), 2)  / (2 * math.pow(sig, 2)) ))
+    #for not spam
+    for i in range(len(data)):
+        for j in range(data.shape[1]):
+            sig = sig_not[j] if sig_not[j] > 0 else .0001
+            feat_prob_0[i][j] = (1 / math.sqrt(2 * math.pi)) * np.exp(-(math.pow((data[i][j] - mu_not[j]), 2)  / (2 * math.pow(sig, 2)) ))
+
+    #class prediction:
+    for i in range(len(data)):
+        total_1 = math.log(priors[1])
+        total_0 = math.log(priors[0])
+        for j in range(data.shape[1]-1):
+            if (feat_prob_1[i][j]) == 0:
+                total_1 += 0
+            else:
+                total_1 += math.log(feat_prob_1[i][j])
+            if (feat_prob_0[i][j]) == 0:
+                total_0 += 0
+            else:
+                total_0 += math.log(feat_prob_0[i][j])
+
+        predicted = 1 if total_1 > total_0 else 0
+
+        if predicted == data[i][57]:
+            correct_total += 1
+        else:
+            incorrect_total += 1
+        
+        x = int(data[i][57])
+        confusion[x][predicted] += 1
+
+    return correct_total, incorrect_total, confusion
+
+
+#calculate the mean and standard deviation for the training data
+def calc_feature_values(training_data):
+    #separate out the two classes 
+    spam = training_data[training_data[:,57] == 1]
+    not_spam = training_data[training_data[:,57] == 0]
+
+    #get mean of columns
+    averages_spam = spam.mean(axis=0)
+    averages_not = not_spam.mean(axis=0)
+
+    #get standard deviation
+    sigma_spam = np.std(spam, axis=0)
+    sigma_not = np.std(not_spam, axis=0)
+
+    #get priors
+    priors = []
+    priors.append(len(not_spam)/len(training_data))
+    priors.append(len(spam)/len(training_data))
+
+    return averages_spam, averages_not, sigma_spam, sigma_not, priors
+
+
+
+
 def load_data(datafile):
-    #indexes by column, row
+    #pd indexes by column, row
     data = pd.read_csv(datafile, header=None)
 
-    print(data.head())
-    print(len(data))
-    print(data[2][57])
-    print(data[57][2])
-
-    print(data.index[2])
-    print(type(data[:][2]))
-
-
     #spam 40%
-    #class_1_data = data.loc[data[column]condition]
     class_1_data = data.loc[data[57] == 1]
-    print(len(class_1_data))
     train_data_1 = class_1_data[:len(class_1_data)//2]
     test_data_1 = class_1_data[len(class_1_data)//2:]
-    print("train cl 1 length:", len(train_data_1))
-    print("test cl 1 length:", len(test_data_1))
 
     #not-spam 60%
     class_2_data = data.loc[data[57] == 0]
-    print(len(class_2_data))
     train_data_2 = class_2_data[:len(class_2_data)//2]
     test_data_2 = class_2_data[len(class_2_data)//2:]
-    print("train cl 2 length:", len(train_data_2))
-    print("test cl 2 length:", len(test_data_2))
 
     #randomize, convert to numpy
     train_data_series = pd.concat([train_data_1, train_data_2], ignore_index=True)
     train_data_series = train_data_series.sample(len(train_data_series))
-    print(type(train_data_series))
-    #train_data_1 = train_data_1.to_numpy()
-    print(train_data_series.shape)
-    print(train_data_series.head())
-    print(train_data_series.tail())
     train_data = train_data_series.to_numpy()
-    print(train_data[:5])
 
-    #now randomize both:
-    train_set =  0
+    test_data_series = pd.concat([test_data_1, test_data_2], ignore_index=True)
+    test_data_series = test_data_series.sample(len(test_data_series))
+    test_data = test_data_series.to_numpy()
 
-
-
+    return train_data, test_data
 
 
 
 def main():
-    #TODO replace with specific vals from training data
-    spam_prior = .4
-    not_prior = .6
-
+    #check for a command line argument
     if len(sys.argv) < 2:
         print("Enter data file!")
+        sys.exit(1)
 
+    #read in the data
     file = sys.argv[1]
-    load_data(file)
+    train_set, test_set = load_data(file)
+
+    #calculate features from training data, use to classify test data
+    mu_spam, mu_not, sigma_spam, sigma_not, priors = calc_feature_values(train_set)
+    right, wrong, conf = naive_bayes_classifier(test_set, mu_spam, mu_not, sigma_spam, sigma_not, priors)
+
+    #display results
+    print("# correct:", right, "# incorrect:", wrong)
+    print(right/(right+wrong))
+
+    confusion_data = pd.DataFrame(conf, range(2), range(2))
+    sb.heatmap(confusion_data, cmap="BuPu", annot=True, fmt='d')
+    pyplt.xlabel('Predicted Class')
+    pyplt.ylabel('True Class')
+    pyplt.show()
 
 
 if __name__ == '__main__':
