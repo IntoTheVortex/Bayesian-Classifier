@@ -1,6 +1,8 @@
 import sys
 import math
 import pandas as pd
+import seaborn as sb
+import matplotlib.pyplot as pyplt
 import numpy as np
 
 '''
@@ -14,9 +16,10 @@ deviation, assign it a “minimal” standard deviation (e.g., 0.0001) to avoid 
 zero error in Gaussian Naïve Bayes.    
 '''
 
-def naive_bayes_classifier(data, mu_spam, mu_not, sig_spam, sig_not):
-    #P(xi|cj) = N(xi; mu^i,cj, sig^i,cj)
-    #N(xi; mu^i,cj, sig^i,cj) = 1/sqrt(2pi) * e ^ -[(x-mu)^2/2sig^2]
+def naive_bayes_classifier(data, mu_spam, mu_not, sig_spam, sig_not, priors):
+    correct_total = 0
+    incorrect_total = 0
+    confusion = np.zeros(shape=(2,2), dtype=int)
 
     #Feature probabilities given class:
     feat_prob_1 = np.zeros(shape=data.shape)
@@ -24,20 +27,18 @@ def naive_bayes_classifier(data, mu_spam, mu_not, sig_spam, sig_not):
     #for spam
     for i in range(len(data)):
         for j in range(data.shape[1]):
-            feat_prob_1[i][j] = (1 / math.sqrt(2 * math.pi)) * np.exp(-(math.pow((data[i][j] - mu_spam[j]), 2)  / (2 * math.pow(sig_spam[j], 2)) ))
+            sig = sig_spam[j] if sig_spam[j] > 0 else .0001
+            feat_prob_1[i][j] = (1 / math.sqrt(2 * math.pi)) * np.exp(-(math.pow((data[i][j] - mu_spam[j]), 2)  / (2 * math.pow(sig, 2)) ))
     #for not spam
     for i in range(len(data)):
         for j in range(data.shape[1]):
-            feat_prob_0[i][j] = (1 / math.sqrt(2 * math.pi)) * np.exp(-(math.pow((data[i][j] - mu_not[j]), 2)  / (2 * math.pow(sig_not[j], 2)) ))
+            sig = sig_not[j] if sig_not[j] > 0 else .0001
+            feat_prob_0[i][j] = (1 / math.sqrt(2 * math.pi)) * np.exp(-(math.pow((data[i][j] - mu_not[j]), 2)  / (2 * math.pow(sig, 2)) ))
 
     #class prediction:
-    prior_1 = .4
-    prior_0 = .6
-    prediction_1 = np.zeros(len(data))
-    prediction_0 = np.zeros(len(data))
     for i in range(len(data)):
-        total_1 = math.log(prior_1)
-        total_0 = math.log(prior_0)
+        total_1 = math.log(priors[1])
+        total_0 = math.log(priors[0])
         for j in range(data.shape[1]-1):
             if (feat_prob_1[i][j]) == 0:
                 total_1 += 0
@@ -48,94 +49,39 @@ def naive_bayes_classifier(data, mu_spam, mu_not, sig_spam, sig_not):
             else:
                 total_0 += math.log(feat_prob_0[i][j])
 
-        #TODO fix argmax usage
-        prediction_1[i] = total_1
-        prediction_0[i] = total_0
+        predicted = 1 if total_1 > total_0 else 0
 
-        if prediction_1[i] > prediction_0[i]:
-            print("predicted: 1", " real:", data[i][57])
+        if predicted == data[i][57]:
+            correct_total += 1
         else:
-            print("predicted: 0", "real:", data[i][57])
+            incorrect_total += 1
+        
+        x = int(data[i][57])
+        confusion[x][predicted] += 1
+
+    return correct_total, incorrect_total, confusion
 
 
-
-#bayes pt 2 about 28 min
+#calculate the mean and standard deviation for the training data
 def calc_feature_values(training_data):
-    #just get mu and standard dev (sigma) for each of 57 different features
-
     #separate out the two classes 
     spam = training_data[training_data[:,57] == 1]
     not_spam = training_data[training_data[:,57] == 0]
-    print("spam: ", len(spam))
-    print("not spam: ", len(not_spam))
 
     #get mean of columns
-    #spam:
-    mu_spam = np.zeros(spam.shape[1])
-    for i in range(len(spam)):
-        for j in range(spam.shape[1]):
-            mu_spam[j] += spam[i][j]
-
-    mu_spam = mu_spam/len(spam)
-    #not spam:
-    mu_not = np.zeros(not_spam.shape[1])
-    for i in range(len(not_spam)):
-        for j in range(not_spam.shape[1]):
-            mu_not[j] += not_spam[i][j]
-
-    mu_not = mu_not/len(not_spam)
-
-
-    #check against np functions
     averages_spam = spam.mean(axis=0)
-    if np.array_equal(mu_spam, averages_spam):
-        print("mu for spam: correct")
     averages_not = not_spam.mean(axis=0)
-    if np.array_equal(mu_not, averages_not):
-        print("mu for not: correct")
-
 
     #get standard deviation
-    sigma_spam = np.zeros(spam.shape[1])
-    for i in range(len(spam)):
-        for j in range(spam.shape[1]):
-            sigma_spam[j] += math.pow(abs(spam[i][j] - mu_spam[j]), 2)
-    sigma_spam = sigma_spam / len(sigma_spam)
-    sigma_spam = np.sqrt(sigma_spam)
+    sigma_spam = np.std(spam, axis=0)
+    sigma_not = np.std(not_spam, axis=0)
 
-    sigma_not = np.zeros(not_spam.shape[1])
-    for i in range(len(not_spam)):
-        for j in range(not_spam.shape[1]):
-            sigma_not[j] += math.pow(abs(not_spam[i][j] - mu_not[j]), 2)
-    sigma_not = np.sqrt(sigma_not / len(sigma_not))
+    #get priors
+    priors = []
+    priors.append(len(not_spam)/len(training_data))
+    priors.append(len(spam)/len(training_data))
 
-    #check for zeros
-    for x in range(len(sigma_spam)):
-        if sigma_spam[x] == 0:
-            sigma_spam[x] = .0001
-    for x in range(len(sigma_not)):
-        if sigma_not[x] == 0:
-            sigma_not[x] = .0001
-
-
-
-    #check agains np functions:
-    sig_spam = np.std(spam, axis=0)
-    if np.array_equal(sigma_spam, sig_spam):
-        print("sigma for spam: correct")
-    else:
-        print("sigma for spam: NOT correct")
-        #print("np:")
-        #print(sig_spam)
-        #print("hand:")
-        #print(sigma_spam)
-    sig_not = np.std(not_spam, axis=0)
-    if np.array_equal(sigma_not, sig_not):
-        print("sigma for not: correct")
-    else:
-        print("sigma for not: NOT correct")
-    
-    return mu_spam, mu_not, sigma_spam, sigma_not
+    return averages_spam, averages_not, sigma_spam, sigma_not, priors
 
 
 
@@ -144,31 +90,15 @@ def load_data(datafile):
     #pd indexes by column, row
     data = pd.read_csv(datafile, header=None)
 
-    #testing pandas stuff
-    print(data.head())
-    print(len(data))
-    print(data[2][57])
-    print(data[57][2])
-    print(data.index[2])
-    print(type(data[:][2]))
-
-
     #spam 40%
-    #class_1_data = data.loc[data[column]condition]
     class_1_data = data.loc[data[57] == 1]
-    print(len(class_1_data))
     train_data_1 = class_1_data[:len(class_1_data)//2]
     test_data_1 = class_1_data[len(class_1_data)//2:]
-    print("train cl 1 length:", len(train_data_1))
-    print("test cl 1 length:", len(test_data_1))
 
     #not-spam 60%
     class_2_data = data.loc[data[57] == 0]
-    print(len(class_2_data))
     train_data_2 = class_2_data[:len(class_2_data)//2]
     test_data_2 = class_2_data[len(class_2_data)//2:]
-    print("train cl 2 length:", len(train_data_2))
-    print("test cl 2 length:", len(test_data_2))
 
     #randomize, convert to numpy
     train_data_series = pd.concat([train_data_1, train_data_2], ignore_index=True)
@@ -179,28 +109,33 @@ def load_data(datafile):
     test_data_series = test_data_series.sample(len(test_data_series))
     test_data = test_data_series.to_numpy()
 
-    #print(train_data[:5])
-    #print(test_data[:5])
-
-    print(len(train_data))
-    print(len(test_data))
-
     return train_data, test_data
 
 
 
 def main():
-    #TODO replace with specific vals from training data
-    spam_prior = .4
-    not_prior = .6
-
+    #check for a command line argument
     if len(sys.argv) < 2:
         print("Enter data file!")
+        sys.exit(1)
 
+    #read in the data
     file = sys.argv[1]
     train_set, test_set = load_data(file)
-    mu_spam, mu_not, sigma_spam, sigma_not = calc_feature_values(train_set)
-    naive_bayes_classifier(train_set, mu_spam, mu_not, sigma_spam, sigma_not)
+
+    #calculate features from training data, use to classify test data
+    mu_spam, mu_not, sigma_spam, sigma_not, priors = calc_feature_values(train_set)
+    right, wrong, conf = naive_bayes_classifier(test_set, mu_spam, mu_not, sigma_spam, sigma_not, priors)
+
+    #display results
+    print("# correct:", right, "# incorrect:", wrong)
+    print(right/(right+wrong))
+
+    confusion_data = pd.DataFrame(conf, range(2), range(2))
+    sb.heatmap(confusion_data, cmap="BuPu", annot=True, fmt='d')
+    pyplt.xlabel('Predicted Class')
+    pyplt.ylabel('True Class')
+    pyplt.show()
 
 
 if __name__ == '__main__':
