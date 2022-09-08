@@ -23,6 +23,7 @@ features where inclusion or exclusion of some small number of features in the gr
 whether or not an email is spam. The classification would be more successful if it had the
 capacity to account for these cases. The classifier does better than chance, but should be
 improved.
+
 The data set that this classifier was trained on was fairly limited in its scope and the number of
-features per email. It does not seem extensible to other contexts - like other workplaces or
+features per email. It does not seem extensible to other contexts, like other workplaces or
 groups of students.
